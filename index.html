@@ -304,11 +304,9 @@
 
     
     <!-- Bootstrap JS and Popper.js -->
-    <script src="https://kit.fontawesome.com/your-font-awesome-kit.js"></script>
+    <script src="https://kit.fontawesome.com/your-font-awesome-kit.js">
 
-	<!-- Add this before closing </body> tag -->
-<script>
-(function() {
+	    (function() {
     // Load chat widget CSS
     const chatCSS = document.createElement('link');
     chatCSS.rel = 'stylesheet';
@@ -329,6 +327,7 @@
         })
         .catch(error => console.error('Failed to load chat widget:', error));
 })();
-</script>
+    </script>
+
 </body>
 </html>
