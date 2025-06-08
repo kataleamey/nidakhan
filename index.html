@@ -304,30 +304,454 @@
 
     
     <!-- Bootstrap JS and Popper.js -->
-    <script src="https://kit.fontawesome.com/your-font-awesome-kit.js">
+    <script src="https://kit.fontawesome.com/your-font-awesome-kit.js"></script>
 
-	    (function() {
-    // Load chat widget CSS
-    const chatCSS = document.createElement('link');
-    chatCSS.rel = 'stylesheet';
-    chatCSS.href = 'http://your-server.com:8080/widget-styles.css';
-    document.head.appendChild(chatCSS);
+	<!-- Add this complete script before closing </body> tag -->
+<script>
+(function() {
+    // Configuration - Update this with your server URL
+    const API_BASE = 'http://localhost:8080/api/support'; // Change to your actual server URL
     
-    // Load chat widget HTML
-    fetch('http://your-server.com:8080/widget.html')
-        .then(response => response.text())
-        .then(html => {
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-            const widget = doc.getElementById('supportChatWidget');
+    // Create widget HTML
+    const widgetHTML = `
+        <div id="supportChatWidget" style="position: fixed; bottom: 20px; right: 20px; z-index: 10000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+            <button id="chatToggle" style="width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(0,0,0,0.3); transition: all 0.3s ease; color: white; font-size: 24px;">
+                <span id="toggleIcon">💬</span>
+            </button>
             
-            if (widget) {
-                document.body.appendChild(widget);
+            <div id="chatWindow" style="position: absolute; bottom: 80px; right: 0; width: 350px; height: 500px; background: white; border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); display: none; flex-direction: column; overflow: hidden;">
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; position: relative;">
+                    <div style="position: absolute; top: 15px; left: 15px; width: 12px; height: 12px; border-radius: 50%; background: #28a745; border: 2px solid white;" id="statusIndicator"></div>
+                    <button style="position: absolute; top: 15px; right: 15px; background: none; border: none; color: white; font-size: 20px; cursor: pointer; opacity: 0.8;" onclick="closeChat()">×</button>
+                    <h3 style="margin: 0; font-size: 18px; font-weight: 600;">Support Chat</h3>
+                    <p style="margin: 5px 0 0 0; font-size: 14px; opacity: 0.9;" id="headerStatus">We're here to help!</p>
+                </div>
+                
+                <div style="flex: 1; display: flex; flex-direction: column;">
+                    <!-- Initial Form -->
+                    <div id="chatForm" style="padding: 20px; border-bottom: 1px solid #eee;">
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #333;">Your Name *</label>
+                            <input type="text" id="clientName" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; box-sizing: border-box;">
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #333;">Your Email *</label>
+                            <input type="email" id="clientEmail" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; box-sizing: border-box;">
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #333;">Subject *</label>
+                            <input type="text" id="ticketSubject" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; box-sizing: border-box;">
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #333;">How can we help you?</label>
+                            <textarea id="ticketDescription" placeholder="Describe your issue..." style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; resize: vertical; min-height: 80px; box-sizing: border-box;"></textarea>
+                        </div>
+                        <button type="button" onclick="startChat()" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 500; cursor: pointer;">Start Chat</button>
+                    </div>
+                    
+                    <!-- Waiting Screen -->
+                    <div id="waitingScreen" style="display: none; text-align: center; padding: 40px 20px; color: #666;">
+                        <div style="width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div>
+                        <h4>Please wait...</h4>
+                        <p>A support agent will connect with you soon.</p>
+                        <p id="waitingPosition"></p>
+                    </div>
+                    
+                    <!-- Chat Interface -->
+                    <div id="chatInterface" style="display: none; flex: 1; flex-direction: column;">
+                        <div id="chatMessages" style="flex: 1; padding: 20px; overflow-y: auto; max-height: 300px;"></div>
+                        <div style="padding: 20px; border-top: 1px solid #eee; background: #f8f9fa;">
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" id="messageInput" placeholder="Type your message..." style="flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 25px; font-size: 14px; outline: none;">
+                                <button onclick="sendMessage()" style="width: 45px; height: 45px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px;">➤</button>
+                            </div>
+                            <div id="templateButtons" style="display: none; margin-top: 15px; text-align: center;">
+                                <button onclick="respondToTemplate('yes')" style="margin: 0 5px; padding: 8px 20px; border: none; border-radius: 20px; font-size: 14px; cursor: pointer; background: #28a745; color: white;">Yes</button>
+                                <button onclick="respondToTemplate('no')" style="margin: 0 5px; padding: 8px 20px; border: none; border-radius: 20px; font-size: 14px; cursor: pointer; background: #dc3545; color: white;">No</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <style>
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
             }
-        })
-        .catch(error => console.error('Failed to load chat widget:', error));
+            
+            #supportChatWidget #chatToggle:hover {
+                transform: scale(1.1);
+                box-shadow: 0 6px 25px rgba(0,0,0,0.4);
+            }
+            
+            #supportChatWidget .message {
+                margin-bottom: 15px;
+                padding: 12px;
+                border-radius: 12px;
+                max-width: 85%;
+                word-wrap: break-word;
+            }
+            
+            #supportChatWidget .message.client {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                margin-left: auto;
+                text-align: right;
+            }
+            
+            #supportChatWidget .message.support {
+                background: #f1f3f4;
+                color: #333;
+                margin-right: auto;
+            }
+            
+            #supportChatWidget .message.system {
+                background: #fff3cd;
+                color: #856404;
+                text-align: center;
+                margin: 10px auto;
+                font-style: italic;
+                border: 1px solid #ffeaa7;
+            }
+            
+            #supportChatWidget .message.template {
+                background: #e8f4fd;
+                color: #0c5460;
+                margin-right: auto;
+                border-left: 4px solid #17a2b8;
+            }
+            
+            #supportChatWidget .message-time {
+                font-size: 11px;
+                opacity: 0.7;
+                margin-top: 5px;
+            }
+            
+            @media (max-width: 480px) {
+                #supportChatWidget #chatWindow {
+                    width: 300px;
+                    height: 450px;
+                    bottom: 70px;
+                    right: -10px;
+                }
+            }
+        </style>
+    `;
+    
+    // Insert widget into page
+    document.addEventListener('DOMContentLoaded', function() {
+        document.body.insertAdjacentHTML('beforeend', widgetHTML);
+        initializeChatWidget();
+    });
+    
+    // Initialize widget functionality
+    function initializeChatWidget() {
+        let currentTicket = null;
+        let chatInterval = null;
+        let isWaiting = false;
+        let lastMessageCount = 0;
+
+        // Make functions global so they can be called from onclick handlers
+        window.toggleChat = function() {
+            const chatWindow = document.getElementById('chatWindow');
+            const toggleIcon = document.getElementById('toggleIcon');
+            
+            if (chatWindow.style.display === 'none' || chatWindow.style.display === '') {
+                chatWindow.style.display = 'flex';
+                toggleIcon.textContent = '×';
+                
+                if (currentTicket) {
+                    startMessagePolling();
+                }
+            } else {
+                chatWindow.style.display = 'none';
+                toggleIcon.textContent = '💬';
+                
+                if (chatInterval) {
+                    clearInterval(chatInterval);
+                }
+            }
+        };
+
+        window.closeChat = function() {
+            document.getElementById('chatWindow').style.display = 'none';
+            document.getElementById('toggleIcon').textContent = '💬';
+            
+            if (chatInterval) {
+                clearInterval(chatInterval);
+            }
+        };
+
+        window.startChat = async function() {
+            const name = document.getElementById('clientName').value.trim();
+            const email = document.getElementById('clientEmail').value.trim();
+            const subject = document.getElementById('ticketSubject').value.trim();
+            const description = document.getElementById('ticketDescription').value.trim();
+
+            if (!name || !email || !subject) {
+                alert('Please fill in all required fields.');
+                return;
+            }
+
+            const submitBtn = document.querySelector('#chatForm button');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Creating ticket...';
+
+            try {
+                const ticket = {
+                    clientName: name,
+                    clientEmail: email,
+                    subject: subject,
+                    description: description
+                };
+
+                const response = await fetch(`${API_BASE}/tickets/create`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(ticket)
+                });
+
+                if (response.ok) {
+                    currentTicket = await response.json();
+                    
+                    document.getElementById('chatForm').style.display = 'none';
+                    
+                    if (currentTicket.status === 'ON_HOLD') {
+                        showWaitingScreen();
+                    } else {
+                        showChatInterface();
+                    }
+                } else {
+                    throw new Error('Failed to create ticket');
+                }
+            } catch (error) {
+                alert('Failed to start chat. Please try again.');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Start Chat';
+            }
+        };
+
+        function showWaitingScreen() {
+            document.getElementById('waitingScreen').style.display = 'block';
+            document.getElementById('headerStatus').textContent = 'Waiting for agent...';
+            document.getElementById('statusIndicator').style.background = '#dc3545';
+            isWaiting = true;
+            
+            const waitingInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`${API_BASE}/tickets/fetch/${currentTicket.id}`);
+                    const updatedTicket = await response.json();
+                    
+                    if (updatedTicket.status !== 'ON_HOLD') {
+                        clearInterval(waitingInterval);
+                        currentTicket = updatedTicket;
+                        document.getElementById('waitingScreen').style.display = 'none';
+                        showChatInterface();
+                    } else {
+                        updateWaitingPosition();
+                    }
+                } catch (error) {
+                    console.error('Error checking ticket status:', error);
+                }
+            }, 3000);
+        }
+
+        async function updateWaitingPosition() {
+            try {
+                const response = await fetch(`${API_BASE}/tickets/waiting-count`);
+                const data = await response.json();
+                const position = data.waitingCount;
+                
+                document.getElementById('waitingPosition').textContent = 
+                    position > 0 ? `You are #${position} in queue` : 'You\'re next in line!';
+            } catch (error) {
+                console.error('Error getting waiting position:', error);
+            }
+        }
+
+        function showChatInterface() {
+            document.getElementById('chatInterface').style.display = 'flex';
+            document.getElementById('headerStatus').textContent = 'Connected';
+            document.getElementById('statusIndicator').style.background = '#28a745';
+            isWaiting = false;
+            
+            loadMessages();
+            startMessagePolling();
+        }
+
+        async function loadMessages() {
+            if (!currentTicket) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/chat/messages/${currentTicket.id}`);
+                const messages = await response.json();
+                
+                if (messages.length !== lastMessageCount) {
+                    displayMessages(messages);
+                    lastMessageCount = messages.length;
+                    
+                    const lastMessage = messages[messages.length - 1];
+                    if (lastMessage && lastMessage.messageType === 'TEMPLATE') {
+                        showTemplateButtons();
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load messages:', error);
+            }
+        }
+
+        function displayMessages(messages) {
+            const chatMessages = document.getElementById('chatMessages');
+            
+            chatMessages.innerHTML = messages.map(message => `
+                <div class="message ${message.messageType.toLowerCase()}">
+                    <div>${message.content}</div>
+                    <div class="message-time">${formatTime(message.sentDate)}</div>
+                </div>
+            `).join('');
+            
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        window.sendMessage = async function() {
+            if (!currentTicket) return;
+
+            const messageInput = document.getElementById('messageInput');
+            const content = messageInput.value.trim();
+
+            if (!content) return;
+
+            try {
+                const message = {
+                    content: content,
+                    senderName: currentTicket.clientName,
+                    messageType: 'CLIENT'
+                };
+
+                const response = await fetch(`${API_BASE}/chat/send/${currentTicket.id}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(message)
+                });
+
+                if (response.ok) {
+                    messageInput.value = '';
+                    hideTemplateButtons();
+                    loadMessages();
+                }
+            } catch (error) {
+                console.error('Failed to send message:', error);
+            }
+        };
+
+        function showTemplateButtons() {
+            document.getElementById('templateButtons').style.display = 'block';
+            document.getElementById('messageInput').disabled = true;
+            document.getElementById('messageInput').placeholder = 'Please respond using the buttons above';
+        }
+
+        function hideTemplateButtons() {
+            document.getElementById('templateButtons').style.display = 'none';
+            document.getElementById('messageInput').disabled = false;
+            document.getElementById('messageInput').placeholder = 'Type your message...';
+        }
+
+        window.respondToTemplate = async function(response) {
+            if (!currentTicket) return;
+
+            try {
+                const message = {
+                    content: response === 'yes' ? 'Yes, I have more questions.' : 'No, that\'s all. Thank you!',
+                    senderName: currentTicket.clientName,
+                    messageType: 'CLIENT'
+                };
+
+                await fetch(`${API_BASE}/chat/send/${currentTicket.id}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(message)
+                });
+
+                hideTemplateButtons();
+                
+                if (response === 'no') {
+                    setTimeout(() => {
+                        const chatMessages = document.getElementById('chatMessages');
+                        chatMessages.innerHTML += `
+                            <div class="message system">
+                                <div>Thank you for using our support! This chat will close automatically.</div>
+                            </div>
+                        `;
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                        
+                        setTimeout(() => {
+                            closeChat();
+                            resetChat();
+                        }, 3000);
+                    }, 1000);
+                }
+                
+                loadMessages();
+            } catch (error) {
+                console.error('Failed to respond to template:', error);
+            }
+        };
+
+        function startMessagePolling() {
+            if (chatInterval) {
+                clearInterval(chatInterval);
+            }
+            
+            chatInterval = setInterval(() => {
+                if (currentTicket && !isWaiting) {
+                    loadMessages();
+                }
+            }, 2000);
+        }
+
+        function resetChat() {
+            currentTicket = null;
+            lastMessageCount = 0;
+            document.getElementById('chatForm').style.display = 'block';
+            document.getElementById('waitingScreen').style.display = 'none';
+            document.getElementById('chatInterface').style.display = 'none';
+            document.getElementById('headerStatus').textContent = 'We\'re here to help!';
+            
+            document.getElementById('clientName').value = '';
+            document.getElementById('clientEmail').value = '';
+            document.getElementById('ticketSubject').value = '';
+            document.getElementById('ticketDescription').value = '';
+            
+            if (chatInterval) {
+                clearInterval(chatInterval);
+            }
+        }
+
+        function formatTime(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        // Add click handler to toggle button
+        document.getElementById('chatToggle').addEventListener('click', toggleChat);
+        
+        // Add enter key handler to message input
+        document.getElementById('messageInput').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    }
 })();
-    </script>
+</script>
 
 </body>
 </html>
