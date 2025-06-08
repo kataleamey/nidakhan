@@ -305,5 +305,30 @@
     
     <!-- Bootstrap JS and Popper.js -->
     <script src="https://kit.fontawesome.com/your-font-awesome-kit.js"></script>
+
+	<!-- Add this before closing </body> tag -->
+<script>
+(function() {
+    // Load chat widget CSS
+    const chatCSS = document.createElement('link');
+    chatCSS.rel = 'stylesheet';
+    chatCSS.href = 'http://your-server.com:8080/widget-styles.css';
+    document.head.appendChild(chatCSS);
+    
+    // Load chat widget HTML
+    fetch('http://your-server.com:8080/widget.html')
+        .then(response => response.text())
+        .then(html => {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const widget = doc.getElementById('supportChatWidget');
+            
+            if (widget) {
+                document.body.appendChild(widget);
+            }
+        })
+        .catch(error => console.error('Failed to load chat widget:', error));
+})();
+</script>
 </body>
 </html>
